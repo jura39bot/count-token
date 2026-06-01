@@ -1,17 +1,27 @@
 # 📊 Récapitulatif Token OpenClaw - Mensuel
 
-*Généré le: 2026-05-31 23:50:07*
+*Généré le: 2026-06-01 07:15:09*
 
+
+## Juin 2026
+
+- **Input tokens**: 82,397
+- **Output tokens**: 4,529
+- **Total tokens**: 86,926
+- **Cache read**: 385,208
+- **Cache write**: 15,801
+- **Jours actifs**: 1
+- **Requêtes**: 26
 
 ## Mai 2026
 
-- **Input tokens**: 4,793,517
-- **Output tokens**: 236,978
-- **Total tokens**: 5,030,495
-- **Cache read**: 25,002,810
+- **Input tokens**: 4,812,726
+- **Output tokens**: 237,770
+- **Total tokens**: 5,050,496
+- **Cache read**: 25,097,795
 - **Cache write**: 237,712
 - **Jours actifs**: 30
-- **Requêtes**: 1,597
+- **Requêtes**: 1,604
 
 ## Avril 2026
 
