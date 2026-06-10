@@ -1,64 +1,24 @@
 # 📊 Récapitulatif Token OpenClaw - Mensuel
 
-*Généré le: 2026-06-05 07:15:12*
+*Généré le: 2026-06-10 07:04:20*
 
 
 ## Juin 2026
 
-- **Input tokens**: 1,021,732
-- **Output tokens**: 31,197
-- **Total tokens**: 1,052,929
-- **Cache read**: 6,310,720
-- **Cache write**: 35,002
-- **Jours actifs**: 3
-- **Requêtes**: 305
+- **Input tokens**: 1,068,758
+- **Output tokens**: 16,602
+- **Total tokens**: 1,085,360
+- **Cache read**: 2,276,813
+- **Cache write**: 0
+- **Jours actifs**: 4
+- **Requêtes**: 166
 
 ## Mai 2026
 
-- **Input tokens**: 4,670,619
-- **Output tokens**: 227,872
-- **Total tokens**: 4,898,491
-- **Cache read**: 24,110,541
-- **Cache write**: 221,821
-- **Jours actifs**: 30
-- **Requêtes**: 1,562
-
-## Avril 2026
-
-- **Input tokens**: 1,326,722
-- **Output tokens**: 35,615
-- **Total tokens**: 1,362,337
-- **Cache read**: 6,271,144
-- **Cache write**: 40,554
-- **Jours actifs**: 20
-- **Requêtes**: 339
-
-## Mars 2026
-
-- **Input tokens**: 149,641
-- **Output tokens**: 179,495
-- **Total tokens**: 329,136
-- **Cache read**: 13,386,052
-- **Cache write**: 2,282,320
-- **Jours actifs**: 21
-- **Requêtes**: 427
-
-## Février 2026
-
-- **Input tokens**: 11,797
-- **Output tokens**: 658,990
-- **Total tokens**: 670,787
-- **Cache read**: 118,775,355
-- **Cache write**: 23,151,517
-- **Jours actifs**: 18
-- **Requêtes**: 1,890
-
-## Janvier 2026
-
-- **Input tokens**: 629
-- **Output tokens**: 14,780
-- **Total tokens**: 15,409
-- **Cache read**: 1,220,093
-- **Cache write**: 369,937
+- **Input tokens**: 119,026
+- **Output tokens**: 8,671
+- **Total tokens**: 127,697
+- **Cache read**: 654,589
+- **Cache write**: 0
 - **Jours actifs**: 2
-- **Requêtes**: 56
+- **Requêtes**: 39
