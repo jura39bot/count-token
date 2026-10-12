@@ -4,11 +4,14 @@ Count Token - Track OpenClaw token usage per day
 
 This script parses OpenClaw session files and aggregates
 input/output tokens per day, then generates a monthly recap.
+
+Supports plain .jsonl, .jsonl.deleted.*, .jsonl.reset.*, and zstd-compressed .zst files.
 """
 
 import json
 import os
 import sys
+import subprocess
 from datetime import datetime
 from pathlib import Path
 from collections import defaultdict
@@ -34,48 +37,70 @@ def parse_sessions():
         print(f"❌ Sessions directory not found: {SESSIONS_DIR}")
         return daily_stats
 
-    for session_file in SESSIONS_DIR.glob("*.jsonl"):
-        # Skip checkpoint files
-        if ".checkpoint." in session_file.name:
+    for session_file in SESSIONS_DIR.glob("*"):
+        if not session_file.is_file():
+            continue
+        name = session_file.name
+
+        # Skip checkpoint / trajectory path stubs
+        if ".checkpoint." in name or name.endswith(".trajectory-path.json"):
+            continue
+
+        # Only process jsonl-derived files (plain, .deleted.*, .reset.*, .zst variants)
+        if ".jsonl" not in name:
             continue
 
         try:
-            with open(session_file, "r") as f:
-                for line in f:
-                    line = line.strip()
-                    if not line:
+            if name.endswith(".zst"):
+                proc = subprocess.run(
+                    ["zstdcat", str(session_file)],
+                    capture_output=True,
+                    text=True,
+                    timeout=300,
+                )
+                if proc.returncode != 0:
+                    print(f"⚠️  zstdcat failed on {session_file.name}: {proc.stderr.strip()[:200]}")
+                    continue
+                lines = proc.stdout.splitlines()
+            else:
+                with open(session_file, "r") as f:
+                    lines = f.readlines()
+
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    record = json.loads(line)
+                    if record.get("type") != "message":
                         continue
-                    try:
-                        record = json.loads(line)
-                        if record.get("type") != "message":
-                            continue
 
-                        message = record.get("message", {})
-                        if not isinstance(message, dict):
-                            continue
-
-                        usage = message.get("usage")
-                        if not usage:
-                            continue
-
-                        timestamp = record.get("timestamp")
-                        if not timestamp:
-                            continue
-
-                        # Extract date (YYYY-MM-DD)
-                        date = timestamp[:10]
-
-                        # Add to daily stats
-                        daily_stats[date]["input"] += usage.get("input", 0)
-                        daily_stats[date]["output"] += usage.get("output", 0)
-                        daily_stats[date]["cache_read"] += usage.get("cacheRead", 0)
-                        daily_stats[date]["cache_write"] += usage.get("cacheWrite", 0)
-                        daily_stats[date]["requests"] += 1
-
-                    except (json.JSONDecodeError, KeyError):
+                    message = record.get("message", {})
+                    if not isinstance(message, dict):
                         continue
+
+                    usage = message.get("usage")
+                    if not usage:
+                        continue
+
+                    timestamp = record.get("timestamp")
+                    if not timestamp:
+                        continue
+
+                    # Extract date (YYYY-MM-DD)
+                    date = timestamp[:10]
+
+                    # Add to daily stats
+                    daily_stats[date]["input"] += usage.get("input", 0)
+                    daily_stats[date]["output"] += usage.get("output", 0)
+                    daily_stats[date]["cache_read"] += usage.get("cacheRead", 0)
+                    daily_stats[date]["cache_write"] += usage.get("cacheWrite", 0)
+                    daily_stats[date]["requests"] += 1
+
+                except (json.JSONDecodeError, KeyError):
+                    continue
         except Exception as e:
-            print(f"⚠️ Error reading {session_file}: {e}")
+            print(f"⚠️  Error reading {session_file}: {e}")
             continue
 
     return daily_stats
