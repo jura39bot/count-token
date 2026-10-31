@@ -2,10 +2,12 @@
 """
 Count Token - Track OpenClaw token usage per day
 
-This script parses OpenClaw session files and aggregates
+Reads token usage from the OpenClaw SQLite session store
+(transcript_events.event_json -> message.usage) and aggregates
 input/output tokens per day, then generates a monthly recap.
 
-Supports plain .jsonl, .jsonl.deleted.*, .jsonl.reset.*, and zstd-compressed .zst files.
+Since the SQLite migration (Oct 2026) sessions are no longer written
+as JSONL files, so the legacy JSONL scan is only a fallback.
 """
 
 import json
@@ -18,6 +20,7 @@ from collections import defaultdict
 
 # Config
 SESSIONS_DIR = Path("/root/.openclaw/agents/main/sessions")
+AGENT_DB = Path("/root/.openclaw/agents/main/agent/openclaw-agent.sqlite")
 DATA_DIR = Path("/root/clawd/count-token/data")
 OUTPUT_DIR = Path("/root/clawd/count-token")
 GITHUB_REPO = "jura39bot/count-token"
@@ -29,8 +32,59 @@ MONTHS_FR = [
 ]
 
 
+def _add_usage(daily_stats, timestamp, usage):
+    """Fold one usage record into the daily aggregation."""
+    if not timestamp or not usage:
+        return
+    date = timestamp[:10]
+    daily_stats[date]["input"] += usage.get("input", 0)
+    daily_stats[date]["output"] += usage.get("output", 0)
+    daily_stats[date]["cache_read"] += usage.get("cacheRead", 0)
+    daily_stats[date]["cache_write"] += usage.get("cacheWrite", 0)
+    daily_stats[date]["requests"] += 1
+
+
+def parse_sqlite():
+    """Read token usage from the OpenClaw SQLite transcript store."""
+    daily_stats = defaultdict(lambda: {"input": 0, "output": 0, "cache_read": 0, "cache_write": 0, "requests": 0})
+
+    if not AGENT_DB.exists():
+        return None
+
+    import sqlite3
+
+    try:
+        conn = sqlite3.connect(f"file:{AGENT_DB}?mode=ro", uri=True)
+    except sqlite3.Error as e:
+        print(f"⚠️  Cannot open {AGENT_DB}: {e}")
+        return None
+
+    try:
+        rows = conn.execute(
+            "select event_json from transcript_events where event_json like '%\"usage\"%'"
+        )
+        for (event_json,) in rows:
+            try:
+                record = json.loads(event_json)
+            except json.JSONDecodeError:
+                continue
+            if record.get("type") != "message":
+                continue
+            message = record.get("message")
+            if not isinstance(message, dict):
+                continue
+            _add_usage(daily_stats, record.get("timestamp"), message.get("usage"))
+    except sqlite3.Error as e:
+        print(f"⚠️  SQLite read failed: {e}")
+        return None
+    finally:
+        conn.close()
+
+    return daily_stats
+
+
 def parse_sessions():
-    """Parse all session JSONL files and extract token usage."""
+    """Parse legacy session JSONL files (fallback / pre-migration history)."""
     daily_stats = defaultdict(lambda: {"input": 0, "output": 0, "cache_read": 0, "cache_write": 0, "requests": 0})
 
     if not SESSIONS_DIR.exists():
@@ -87,15 +141,7 @@ def parse_sessions():
                     if not timestamp:
                         continue
 
-                    # Extract date (YYYY-MM-DD)
-                    date = timestamp[:10]
-
-                    # Add to daily stats
-                    daily_stats[date]["input"] += usage.get("input", 0)
-                    daily_stats[date]["output"] += usage.get("output", 0)
-                    daily_stats[date]["cache_read"] += usage.get("cacheRead", 0)
-                    daily_stats[date]["cache_write"] += usage.get("cacheWrite", 0)
-                    daily_stats[date]["requests"] += 1
+                    _add_usage(daily_stats, timestamp, usage)
 
                 except (json.JSONDecodeError, KeyError):
                     continue
@@ -104,6 +150,31 @@ def parse_sessions():
             continue
 
     return daily_stats
+
+
+def load_existing_csv():
+    """Load previously saved daily rows so history predating the store is kept."""
+    csv_file = DATA_DIR / "daily_tokens.csv"
+    existing = {}
+    if not csv_file.exists():
+        return existing
+    with open(csv_file) as f:
+        next(f, None)
+        for line in f:
+            parts = line.strip().split(",")
+            if len(parts) < 7:
+                continue
+            try:
+                existing[parts[0]] = {
+                    "input": int(parts[1]),
+                    "output": int(parts[2]),
+                    "cache_read": int(parts[3]),
+                    "cache_write": int(parts[4]),
+                    "requests": int(parts[6]),
+                }
+            except ValueError:
+                continue
+    return existing
 
 
 def save_daily_stats(daily_stats):
@@ -196,13 +267,30 @@ def print_today_stats(daily_stats):
 
 def main():
     print("🔄 Parsing OpenClaw sessions...")
-    daily_stats = parse_sessions()
+
+    daily_stats = parse_sqlite()
+    source = "SQLite"
+    if daily_stats is None:
+        print("⚠️  SQLite store unavailable, falling back to JSONL files")
+        daily_stats = parse_sessions()
+        source = "JSONL"
+
+    # Legacy JSONL history: fill dates the live store does not cover
+    legacy = parse_sessions()
+    for date, stats in legacy.items():
+        if date not in daily_stats:
+            daily_stats[date] = stats
+
+    # Preserve older CSV history (before the store existed)
+    for date, stats in load_existing_csv().items():
+        if date not in daily_stats:
+            daily_stats[date] = stats
 
     if not daily_stats:
         print("❌ No token usage data found")
         return 1
 
-    print(f"📊 Found data for {len(daily_stats)} days")
+    print(f"📊 Found data for {len(daily_stats)} days (source: {source})")
 
     # Save daily CSV
     save_daily_stats(daily_stats)
